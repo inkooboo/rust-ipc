@@ -1,0 +1,6 @@
+[package]
+name = "ipc"
+version = "0.1.0"
+authors = ["inkooboo <inkooboo@gmail.com>"]
+
+[dependencies]
