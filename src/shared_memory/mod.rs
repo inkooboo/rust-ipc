@@ -1,18 +1,7 @@
 //!
 
-extern crate libc
-
-use libc;
+use libc::*;
 use std::ffi::CString;
-
-extern {
-    fn shm_open(name: *const c_char, flag: c_int, mode: mode_t) -> c_int;
-    fn ftruncate(fd: c_int, length: off_t) -> c_int;
-    fn shm_unlink(name: *const c_char) -> c_int;
-    fn close(fd: c_int) -> c_int;
-    fn mmap(addr: *c_void, length: size_t, prot: c_int, flags: c_int, fd: c_int, offset: off_t) -> *c_void;
-    fn munmap(addr: *c_void, length: size_t) -> c_int;
-}
 
 pub enum CreateMode {
     CreateOnly,
@@ -37,49 +26,57 @@ pub struct Handle {
 }
 
 impl Handle {
-    fn new(name: &CString, create_mode: CreateMode, access_mode: AccessMode, permissions: Premissions) -> Result<Handle, String> {
+    pub fn new(name: &str, create_mode: CreateMode, access_mode: AccessMode, permissions: Permissions) -> Result<Handle, String> {
         unsafe {
             let cmode = match create_mode {
-                CreateOnly => O_CREAT | O_EXCL,
-                OpenOrCreate => O_CREAT,
-                OpenOnly => 0,
+                CreateMode::CreateOnly => O_CREAT | O_EXCL,
+                CreateMode::OpenOrCreate => O_CREAT,
+                CreateMode::OpenOnly => 0,
             };
             let amode = match access_mode {
-                ReadOnly => O_RDONLY,
-                ReadWrite => O_RDWR,
+                AccessMode::ReadOnly => O_RDONLY,
+                AccessMode::ReadWrite => O_RDWR,
             };
             let perm = match permissions {
-                Default => S_IRWXG,
+                Permissions::Default => S_IRWXG,
                 // TODO
-            }
-            let fd = shm_open(name.as_ptr(), cmode | amode, perm);
+            };
+            let cstr = match CString::new(name) {
+                Err(_) => return Err(format!("Unable to convert to CString: {}", name)),
+                Ok(val) => val,
+            };
+            let fd = shm_open(cstr.as_ptr(), cmode | amode, perm);
             match fd {
-                -1 => Err("Unable to open/create shared memory object: ".name),
-                _ => Ok(Handle {shm_fd: fd, name: name, access_mode: access_mode}),
+                -1 => Err(format!("Unable to open/create shared memory object: {}", name)),
+                _ => Ok(Handle {shm_fd: fd, name: cstr, access_mode: access_mode}),
             }
         }
     }
-    fn remove(name: &CString) -> bool {
+    pub fn remove(name: &str) -> bool {
         unsafe {
-            match shm_unlink(name.as_ptr()) {
+            let cstr = match CString::new(name) {
+                Err(_) => return false,
+                Ok(val) => val,
+            };
+            match shm_unlink(cstr.as_ptr()) {
                 -1 => false,
                 _ => true,
             }
         }
     }
-    fn name(&self) -> &CString {
-        self.name
+    pub fn name(&self) -> String {
+        self.name.to_string_lossy().into_owned()
     }
-    fn native_handle(&self) -> c_int {
+    pub fn native_handle(&self) -> c_int {
         self.shm_fd
     }
-    fn access_mode(&self) -> AccessMode {
-        self.access_mode
+    pub fn access_mode(&self) -> &AccessMode {
+        &self.access_mode
     }
 }
 
 impl Drop for Handle {
-    fn drop(&self) {
+    fn drop(&mut self) {
         unsafe {
             close(self.shm_fd);
         }
@@ -89,12 +86,17 @@ impl Drop for Handle {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn handleBreathTest() {
+    fn breath_test_handle() {
+        use super::*;
         let name = "handleBreathTest";
         {
-            let handle = Handle::new(name, CreateMode::CreateOnly, AccessMode::ReadWrite, Permissions::Default);
+            let handle = Handle::new(name, CreateMode::CreateOnly, AccessMode::ReadWrite, Permissions::Default).unwrap();
             assert_eq!(handle.name(), name);
-            assert_eq!(handle.access_mode(), AccessMode::ReadWrite);
+            match handle.access_mode() {
+                &AccessMode::ReadWrite => {},
+                _ => assert!(false, "wrong access mode"),
+            };
+            assert!(handle.native_handle() >= 0);
         }
         let removed = Handle::remove(name);
         assert!(removed);
