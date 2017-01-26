@@ -27,41 +27,37 @@ pub struct Handle {
 
 impl Handle {
     pub fn new(name: &str, create_mode: CreateMode, access_mode: AccessMode, permissions: Permissions) -> Result<Handle, String> {
-        unsafe {
-            let cmode = match create_mode {
-                CreateMode::CreateOnly => O_CREAT | O_EXCL,
-                CreateMode::OpenOrCreate => O_CREAT,
-                CreateMode::OpenOnly => 0,
-            };
-            let amode = match access_mode {
-                AccessMode::ReadOnly => O_RDONLY,
-                AccessMode::ReadWrite => O_RDWR,
-            };
-            let perm = match permissions {
-                Permissions::Default => S_IRWXG,
-                // TODO
-            };
-            let cstr = match CString::new(name) {
-                Err(_) => return Err(format!("Unable to convert to CString: {}", name)),
-                Ok(val) => val,
-            };
-            let fd = shm_open(cstr.as_ptr(), cmode | amode, perm);
-            match fd {
-                -1 => Err(format!("Unable to open/create shared memory object: {}", name)),
-                _ => Ok(Handle {shm_fd: fd, name: cstr, access_mode: access_mode}),
-            }
+        let cmode = match create_mode {
+            CreateMode::CreateOnly => O_CREAT | O_EXCL,
+            CreateMode::OpenOrCreate => O_CREAT,
+            CreateMode::OpenOnly => 0,
+        };
+        let amode = match access_mode {
+            AccessMode::ReadOnly => O_RDONLY,
+            AccessMode::ReadWrite => O_RDWR,
+        };
+        let perm = match permissions {
+            Permissions::Default => S_IRWXG,
+            // TODO
+        };
+        let cstr = match CString::new(name) {
+            Err(_) => return Err(format!("Unable to convert to CString: {}", name)),
+            Ok(val) => val,
+        };
+        let fd = unsafe { shm_open(cstr.as_ptr(), cmode | amode, perm) };
+        match fd {
+            -1 => Err(format!("Unable to open/create shared memory object: {}", name)),
+            _ => Ok(Handle {shm_fd: fd, name: cstr, access_mode: access_mode}),
         }
     }
     pub fn remove(name: &str) -> bool {
-        unsafe {
-            let cstr = match CString::new(name) {
-                Err(_) => return false,
-                Ok(val) => val,
-            };
-            match shm_unlink(cstr.as_ptr()) {
-                -1 => false,
-                _ => true,
-            }
+        let cstr = match CString::new(name) {
+            Err(_) => return false,
+            Ok(val) => val,
+        };
+        match unsafe { shm_unlink(cstr.as_ptr()) } {
+            -1 => false,
+            _ => true,
         }
     }
     pub fn name(&self) -> String {
@@ -77,9 +73,7 @@ impl Handle {
 
 impl Drop for Handle {
     fn drop(&mut self) {
-        unsafe {
-            close(self.shm_fd);
-        }
+        unsafe { close(self.shm_fd) };
     }
 }
 
