@@ -1,2 +1,2 @@
-mod shared_memory;
+pub mod shared_memory;
 

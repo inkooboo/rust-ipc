@@ -2,9 +2,8 @@
 
 extern crate libc
 
-use libc::{c_int, c_char, c_void, size_t, mode_t, off_t, O_RDONLY, O_RDWR, O_CREAT, O_EXCL, S_IRWXG};
+use libc;
 use std::ffi::CString;
-use std::result;
 
 extern {
     fn shm_open(name: *const c_char, flag: c_int, mode: mode_t) -> c_int;
@@ -15,18 +14,18 @@ extern {
     fn munmap(addr: *c_void, length: size_t) -> c_int;
 }
 
-enum CreateMode {
+pub enum CreateMode {
     CreateOnly,
     OpenOrCreate,
     OpenOnly,
 }
 
-enum AccessMode {
+pub enum AccessMode {
     ReadOnly,
     ReadWrite,
 }
 
-enum Permissions {
+pub enum Permissions {
     Default,
     // TODO
 }
@@ -34,13 +33,11 @@ enum Permissions {
 pub struct Handle {
     shm_fd: c_int,
     name: CString,
-    size: u32,
-    create_mode: CreateMode,
     access_mode: AccessMode,
 }
 
 impl Handle {
-    fn new(name: &str, size: u32, create_mode: CreateMode, access_mode: AccessMode, permissions: Premissions) -> Result<Object, &'static str> {
+    fn new(name: &CString, create_mode: CreateMode, access_mode: AccessMode, permissions: Premissions) -> Result<Handle, String> {
         unsafe {
             let cmode = match create_mode {
                 CreateOnly => O_CREAT | O_EXCL,
@@ -55,32 +52,51 @@ impl Handle {
                 Default => S_IRWXG,
                 // TODO
             }
-            let cname = CString::new(name);
-            let rc = shm_open(cname.as_ptr(), cmode | amode, perm);
-            match rc {
-                -1 => "unable to open/create shared memory object",
-            };
+            let fd = shm_open(name.as_ptr(), cmode | amode, perm);
+            match fd {
+                -1 => Err("Unable to open/create shared memory object: ".name),
+                _ => Ok(Handle {shm_fd: fd, name: name, access_mode: access_mode}),
+            }
+        }
+    }
+    fn remove(name: &CString) -> bool {
+        unsafe {
+            match shm_unlink(name.as_ptr()) {
+                -1 => false,
+                _ => true,
+            }
         }
     }
     fn name(&self) -> &CString {
         self.name
     }
-    fn size(&self) -> u32 {
-        self.size
+    fn native_handle(&self) -> c_int {
+        self.shm_fd
     }
-    fn nativeHandle(&self) -> c_int {
-        self.c_int
+    fn access_mode(&self) -> AccessMode {
+        self.access_mode
     }
 }
 
 impl Drop for Handle {
-    fn drop(&mut self) {
+    fn drop(&self) {
+        unsafe {
+            close(self.shm_fd);
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn breathTest() {
+    fn handleBreathTest() {
+        let name = "handleBreathTest";
+        {
+            let handle = Handle::new(name, CreateMode::CreateOnly, AccessMode::ReadWrite, Permissions::Default);
+            assert_eq!(handle.name(), name);
+            assert_eq!(handle.access_mode(), AccessMode::ReadWrite);
+        }
+        let removed = Handle::remove(name);
+        assert!(removed);
     }
 }
