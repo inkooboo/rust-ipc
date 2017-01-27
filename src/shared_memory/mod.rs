@@ -26,6 +26,7 @@ pub struct Handle {
 }
 
 impl Handle {
+    #[cfg(not(windows))]
     pub fn new(name: &str, create_mode: CreateMode, access_mode: AccessMode, permissions: Permissions) -> Result<Handle, String> {
         let cmode = match create_mode {
             CreateMode::CreateOnly => O_CREAT | O_EXCL,
@@ -44,12 +45,14 @@ impl Handle {
             Err(_) => return Err(format!("Unable to convert to CString: {}", name)),
             Ok(val) => val,
         };
-        let fd = unsafe { shm_open(cstr.as_ptr(), cmode | amode, perm) };
+        let fd = unsafe { shm_open(cstr.as_ptr(), cmode | amode as c_int, perm as c_uint) };
         match fd {
             -1 => Err(format!("Unable to open/create shared memory object: {}", name)),
             _ => Ok(Handle {shm_fd: fd, name: cstr, access_mode: access_mode}),
         }
     }
+
+    #[cfg(not(windows))]
     pub fn remove(name: &str) -> bool {
         let cstr = match CString::new(name) {
             Err(_) => return false,
@@ -60,12 +63,31 @@ impl Handle {
             _ => true,
         }
     }
+
+    #[cfg(windows)]
+    pub fn new(name: &str, create_mode: CreateMode, access_mode: AccessMode, permissions: Permissions) -> Result<Handle, String> {
+        // TODO
+        let cstr = match CString::new(name) {
+            Err(_) => return Err(format!("Unable to convert to CString: {}", name)),
+            Ok(val) => val,
+        };
+        Ok(Handle {shm_fd: 0, name: cstr, access_mode: access_mode})
+    }
+
+    #[cfg(windows)]
+    pub fn remove(name: &str) -> bool {
+        // TODO
+        true
+    }
+
     pub fn name(&self) -> String {
         self.name.to_string_lossy().into_owned()
     }
+
     pub fn native_handle(&self) -> c_int {
         self.shm_fd
     }
+
     pub fn access_mode(&self) -> &AccessMode {
         &self.access_mode
     }
