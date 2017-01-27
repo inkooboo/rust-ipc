@@ -15,8 +15,9 @@ pub enum AccessMode {
 }
 
 pub enum Permissions {
-    Default,
-    // TODO
+    User,
+    Group,
+    Others
 }
 
 pub struct Handle {
@@ -38,8 +39,9 @@ impl Handle {
             AccessMode::ReadWrite => O_RDWR,
         };
         let perm = match permissions {
-            Permissions::Default => S_IRWXG,
-            // TODO
+            Permissions::User => S_IRWXU,
+            Permissions::Group => S_IRWXG,
+            Permissions::Others => S_IRWXO,
         };
         let cstr = match CString::new(name) {
             Err(_) => return Err(format!("Unable to convert to CString: {}", name)),
@@ -65,6 +67,7 @@ impl Handle {
     }
 
     #[cfg(windows)]
+    #[allow(unused)]
     pub fn new(name: &str, create_mode: CreateMode, access_mode: AccessMode, permissions: Permissions) -> Result<Handle, String> {
         // TODO
         let cstr = match CString::new(name) {
@@ -75,6 +78,7 @@ impl Handle {
     }
 
     #[cfg(windows)]
+    #[allow(unused)]
     pub fn remove(name: &str) -> bool {
         // TODO
         true
@@ -106,7 +110,7 @@ mod tests {
         use super::*;
         let name = "handleBreathTest";
         {
-            let handle = Handle::new(name, CreateMode::CreateOnly, AccessMode::ReadWrite, Permissions::Default).unwrap();
+            let handle = Handle::new(name, CreateMode::CreateOnly, AccessMode::ReadWrite, Permissions::User).unwrap();
             assert_eq!(handle.name(), name);
             match handle.access_mode() {
                 &AccessMode::ReadWrite => {},
