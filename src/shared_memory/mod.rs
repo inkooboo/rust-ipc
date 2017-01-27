@@ -4,12 +4,13 @@
 use libc::*;
 
 #[cfg(windows)]
-use kernel32::*
+use kernel32::*;
 
 #[cfg(windows)]
 use winapi::*;
 
 use std::ffi::CString;
+use std::ptr;
 
 enum FileHandle {
     Posix(c_int),
@@ -92,18 +93,26 @@ impl Handle {
         };
         let perm = match permissions {
 	    // TODO
-            _ => NULL,
+            _ => ptr::null_mut(),
         };
         let cstr = match CString::new(name) {
             Err(_) => return Err(format!("Unable to convert to CString: {}", name)),
             Ok(val) => val,
         };
-        let fd = unsafe { CreateFileA(cstr.as_ptr(), amode, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, perm, cmode, 0, NULL) };
-        match fd {
-	    INVALID_HANDLE_VALUE => Err(format!("Unable to open/create shared memory object: {}", name)),
-            _ =>  Ok(Handle {shm_fd: FileHandle::Win32(fd), name: cstr, access_mode: access_mode}),
-
-        }
+        let fd = unsafe {
+	    CreateFileA(cstr.as_ptr(),
+	                amode,
+	                FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+	                perm as *mut SECURITY_ATTRIBUTES,
+	                cmode,
+	                0,
+	                ptr::null_mut() as *mut c_void)
+	};
+        if fd == INVALID_HANDLE_VALUE {
+	    Err(format!("Unable to open/create shared memory object: {}", name))
+	} else {
+            Ok(Handle {shm_fd: FileHandle::Win32(fd), name: cstr, access_mode: access_mode})
+	}
     }
 
     #[cfg(windows)]
@@ -112,7 +121,7 @@ impl Handle {
             Err(_) => return false,
             Ok(val) => val,
         };
-        match unsafe { DeleteFile(cstr.as_ptr()) } {
+        match unsafe { DeleteFileA(cstr.as_ptr()) } {
             0 => true,
             _ => false,
         }
@@ -133,7 +142,7 @@ impl Drop for Handle {
         unsafe {
 	    match self.shm_fd {
                 FileHandle::Posix(fd) => close(fd),
-	        _ => {}
+	        _ => 0
 	    }
         };
     }
@@ -145,7 +154,7 @@ impl Drop for Handle {
         unsafe {
 	    match self.shm_fd {
                 FileHandle::Win32(fd) => CloseHandle(fd),
-	        _ => {}
+	        _ => 0 
 	    }
         };
     }
