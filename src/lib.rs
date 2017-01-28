@@ -1,12 +1,6 @@
-#[cfg(not(windows))]
-extern crate libc;
-
-#[cfg(windows)]
-extern crate kernel32;
-
-#[cfg(windows)]
-extern crate winapi;
-
-
+pub mod types;
 pub mod shared_memory;
+
+#[cfg(unix)] #[path = "posix.rs"] mod detail;
+#[cfg(windows)] #[path = "win32.rs"] mod detail;
 
