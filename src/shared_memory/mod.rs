@@ -12,10 +12,12 @@ use winapi::*;
 use std::ffi::CString;
 use std::ptr;
 
-enum FileHandle {
-    Posix(c_int),
-    Win32(HANDLE),
-}
+#[cfg(not(windows))]
+type FileHandle = c_int;
+
+
+#[cfg(windows)]
+type FileHandle = HANDLE;
 
 pub enum CreateMode {
     CreateOnly,
@@ -111,7 +113,7 @@ impl Handle {
         if fd == INVALID_HANDLE_VALUE {
 	    Err(format!("Unable to open/create shared memory object: {}", name))
 	} else {
-            Ok(Handle {shm_fd: FileHandle::Win32(fd), name: cstr, access_mode: access_mode})
+            Ok(Handle {shm_fd: fd, name: cstr, access_mode: access_mode})
 	}
     }
 
@@ -122,9 +124,13 @@ impl Handle {
             Ok(val) => val,
         };
         match unsafe { DeleteFileA(cstr.as_ptr()) } {
-            0 => true,
-            _ => false,
+            0 => false,
+            _ => true,
         }
+    }
+
+    pub fn native_handle(&self) -> FileHandle {
+        self.shm_fd
     }
 
     pub fn name(&self) -> String {
@@ -139,24 +145,14 @@ impl Handle {
 #[cfg(not(windows))]
 impl Drop for Handle {
     fn drop(&mut self) {
-        unsafe {
-	    match self.shm_fd {
-                FileHandle::Posix(fd) => close(fd),
-	        _ => 0
-	    }
-        };
+        unsafe { let _ = close(self.shm_fd); }
     }
 }
 
 #[cfg(windows)]
 impl Drop for Handle {
     fn drop(&mut self) {
-        unsafe {
-	    match self.shm_fd {
-                FileHandle::Win32(fd) => CloseHandle(fd),
-	        _ => 0 
-	    }
-        };
+        unsafe { let _ = CloseHandle(self.shm_fd); }
     }
 }
 
@@ -173,7 +169,7 @@ mod tests {
                 &AccessMode::ReadWrite => {},
                 _ => assert!(false, "wrong access mode"),
             };
-            assert!(handle.native_handle() >= 0);
+            let _ = handle.native_handle();
         }
         let removed = Handle::remove(name);
         assert!(removed);
