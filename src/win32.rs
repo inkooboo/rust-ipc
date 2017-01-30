@@ -54,3 +54,14 @@ pub fn delete_file(name: &CString) -> bool {
 pub fn close_handle(fd: FileHandle) {
     unsafe { let _ = CloseHandle(fd); }
 }
+
+
+pub fn truncate_file(fd: FileHandle, size: usize) -> bool {
+    // TODO
+    true
+}
+
+pub fn map_memory(fd: FileHandle, size: usize, access_mode: &types::AccessMode) -> Option<*mut u8> {
+    // TODO
+    None
+}

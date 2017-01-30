@@ -1,6 +1,7 @@
 //! TODO docs
 
 use std::ffi::CString;
+use std::slice;
 
 use types;
 
@@ -56,6 +57,34 @@ impl Drop for Handle {
 }
 
 
+pub struct MappedRegion {
+    _handle: Handle,
+    ptr: *mut u8,
+    size: usize,
+}
+
+impl MappedRegion {
+    pub fn new(handle: Handle, size: usize) -> Option<MappedRegion> {
+        if !::detail::truncate_file(handle.native_handle(), size) {
+            return None
+        }
+        match ::detail::map_memory(handle.native_handle(), size, handle.access_mode()) {
+            None => None,
+            Some(ptr) => Some(MappedRegion {_handle: handle, ptr: ptr, size: size}),
+        }
+    }
+
+    pub fn memory(&mut self) -> &mut [u8] {
+        unsafe { slice::from_raw_parts_mut(self.ptr, self.size) }
+    }
+
+    pub fn size(&self) -> usize {
+        self.size
+    }
+}
+
+
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -72,6 +101,35 @@ mod tests {
             };
             let _ = handle.native_handle();
         }
+        match Handle::remove(name) {
+            Ok(_) => {},
+            Err(err) => assert!(false, "Can't remove file: {}", err),
+        }
+    }
+
+    #[test]
+    fn breath_test_mapped_region() {
+        use super::*;
+        use types;
+        let name = "mappedRegionBreathTest";
+        const SIZE: usize = 4096;
+        let data: &[u8] = b"Hello Memory Mapped Area!";
+        {
+            let _ = Handle::remove(name);
+            let handle = Handle::new(name, types::CreateMode::CreateOnly, types::AccessMode::ReadWrite, types::Permissions::User).unwrap();
+            let mut mapped_region = MappedRegion::new(handle, SIZE).unwrap();
+            assert_eq!(mapped_region.size(), SIZE);
+            assert_eq!(mapped_region.memory().len(), SIZE);
+            mapped_region.memory()[..data.len()].copy_from_slice(&data);
+        }
+        {
+            let handle = Handle::new(name, types::CreateMode::OpenOnly, types::AccessMode::ReadWrite, types::Permissions::User).unwrap();
+            let mut mapped_region = MappedRegion::new(handle, SIZE).unwrap();
+            let mut buffer = [0u8; SIZE];
+            buffer[..data.len()].copy_from_slice(&mapped_region.memory()[..data.len()]);
+            assert_eq!(data, &buffer[..data.len()]);
+        }
+
         match Handle::remove(name) {
             Ok(_) => {},
             Err(err) => assert!(false, "Can't remove file: {}", err),

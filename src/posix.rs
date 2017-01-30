@@ -1,6 +1,7 @@
 extern crate libc;
 use self::libc::*;
 
+use std::ptr;
 use std::ffi::CString;
 
 use types;
@@ -45,3 +46,25 @@ pub fn delete_file(name: &CString) -> bool {
 pub fn close_handle(fd: FileHandle) {
     unsafe { let _ = close(fd); }
 }
+
+pub fn truncate_file(fd: FileHandle, size: usize) -> bool {
+    match unsafe { ftruncate(fd, size as i64) } {
+        -1 => false,
+        _ => true,
+    }
+}
+
+pub fn map_memory(fd: FileHandle, size: usize, access_mode: types::AccessMode) -> Option<*mut u8> {
+    let amode = match access_mode {
+        types::AccessMode::ReadOnly => PROT_READ,
+        types::AccessMode::ReadWrite => PROT_READ | PROT_WRITE,
+    };
+    let ptr = unsafe { mmap(ptr::null_mut() as *mut c_void, size, amode, MAP_SHARED, fd, 0) };
+    if MAP_FAILED == ptr {
+        None
+    } else {
+        Some(ptr as *mut u8)
+    }
+}
+
+
