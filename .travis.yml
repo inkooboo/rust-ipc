@@ -8,4 +8,4 @@ sudo:
   - false
 
 script:
-  - RUST_BACKTRACE=1 cargo test --verbose
+  - RUST_LOG=debug RUST_BACKTRACE=1 cargo test

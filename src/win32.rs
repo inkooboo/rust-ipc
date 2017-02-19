@@ -58,7 +58,7 @@ pub fn truncate_file(fd: FileHandle, size: usize) -> bool {
     true
 }
 
-pub fn map_memory(fd: FileHandle, size: usize, access_mode: &types::AccessMode) -> Option<*mut u8> {
+pub fn map_memory(fd: FileHandle, size: usize, access_mode: types::AccessMode) -> Option<*mut u8> {
     // TODO
     None
 }
