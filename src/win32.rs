@@ -1,8 +1,5 @@
-extern crate kernel32;
-use self::kernel32::*;
-
-extern crate winapi;
-use self::winapi::*;
+use kernel32::*;
+use winapi::*;
 
 use std::ptr;
 use std::ffi::CString;
