@@ -5,6 +5,8 @@ pub enum Error {
     ConvertString,
     CreateFile,
     DeleteFile,
+    ResizeFile,
+    MapRegion,
 }
 
 impl fmt::Display for Error {

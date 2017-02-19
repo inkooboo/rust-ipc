@@ -64,13 +64,13 @@ pub struct MappedRegion {
 }
 
 impl MappedRegion {
-    pub fn new(handle: Handle, size: usize) -> Option<MappedRegion> {
+    pub fn new(handle: Handle, size: usize) -> Result<MappedRegion, types::Error> {
         if !::detail::truncate_file(handle.native_handle(), size) {
-            return None
+            return Err(types::Error::ResizeFile);
         }
         match ::detail::map_memory(handle.native_handle(), size, handle.access_mode()) {
-            None => None,
-            Some(ptr) => Some(MappedRegion {_handle: handle, ptr: ptr, size: size}),
+            None => Err(types::Error::MapRegion),
+            Some(ptr) => Ok(MappedRegion {_handle: handle, ptr: ptr, size: size}),
         }
     }
 
